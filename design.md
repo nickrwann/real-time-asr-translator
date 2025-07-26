@@ -38,54 +38,6 @@ NOTE: For now, I think i'm just going to use the default vad configurations, not
 
 ### Change / Experiment Backlog
 
-I hear you loud and clear. You’re juggling two core KPIs—**speed** and **accuracy**—and you’ve sketched out a whole ecosystem of levers, from model size all the way down to post-context buffering. Here’s what I’ll do:
-
-1. **Confirm I understand your map**
-2. **Summarize and break down each knob and where it lives**
-3. **Lay out their dependencies and an “investigation plan”** that tweaks the fewest knobs for the biggest gains, building off your simple base script.
-
----
-
-## 1. Confirmation of understanding
-
-- You want to stick with `large-v3` on CUDA/fp16 for now.
-- You see a pipeline of stages where you can tune:
-
-  1. **Model configuration** (size, compute type)
-  2. **Audio sampling** (rate, chunk size)
-  3. **Windowing** (WINDOW_SECONDS, HOP_SECONDS)
-  4. **Inference settings** (beam_size, temperature, thresholds, VAD)
-  5. **Context injection** (initial_prompt vs. sliding window vs. context-padding)
-  6. **Post-processing** (de-duplication, deferred output)
-
-- You’re interested in “context padding”—delaying output by a couple of seconds to include future context and boost accuracy.
-- You want a minimal-change plan: tweak the fewest of these knobs in the right order to hit your speed/accuracy sweet-spot.
-
----
-
-## 2. Knob inventory and how they fit
-
-| Stage                       | Knob(s)                                        | Primary effect               |
-| --------------------------- | ---------------------------------------------- | ---------------------------- |
-| **A. Model config**         | MODEL_NAME, DEVICE, COMPUTE_TYPE               | Base compute & raw accuracy  |
-| **B. Audio I/O**            | SAMPLE_RATE                                    | More samples → slower, finer |
-| **C. Window management**    | WINDOW_SECONDS, HOP_SECONDS                    | Latency vs. context length   |
-| **D. Inference parameters** | beam_size, temperature(s), compression_thresh, | Decoding speed vs. quality   |
-|                             | no_speech_thresh, log_prob_thresh              | and silence filtering        |
-|                             | vad_filter + vad_params                        | drop silent segments         |
-| **E. Context injection**    | initial_prompt, condition_on_previous_text     | reduce re-decodes/repeats    |
-| **F. Context padding**      | output_delay (N hops), deferred-print logic    | future context for accuracy  |
-| **G. Post-processing**      | de-duplication (time, token, fuzzy)            | remove overlap repeats       |
-
----
-
-## 3. Dependencies & Minimal-change “Roadmap”
-
-1. **Enable VAD immediately**
-
-   - Add `vad_filter=True, vad_parameters=VAD_PARAMS` to your single `transcribe(...)` call.
-   - Measure how many “thank you” errors vanish and how much compute you save.
-
 2. **Seed the decoder with initial_prompt**
 
    - Keep a `transcript_buf` of all printed text.
